@@ -59,3 +59,4 @@ pillow
 numpy
 opencv-python-headless
 scikit-learn
+netCDF4
