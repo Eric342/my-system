@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 from PIL import Image
 import numpy as np
-import cv2
 from sklearn.linear_model import LinearRegression
+import cv2   # 云端使用 headless 版本
 
 # 初始化 session_state
 if 'current_tab' not in st.session_state:
