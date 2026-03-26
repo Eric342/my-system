@@ -118,7 +118,7 @@ with col3:
     """, unsafe_allow_html=True)
 
 # ====================== 美化：用 Tabs 横向标签页 ======================
-tab1, tab2, tab3 = st.tabs(["1. 现象识别", "2. 多要素分析", "3. 趋势预测"])
+tab1, tab2, tab3,tab4 = st.tabs(["1. 现象识别", "2. 多要素分析", "3. 趋势预测","4.数据预处理" ])
 
 with tab1:  # 或 if page == "1. 现象识别":
     st.header("现象识别（支持批量上传）")
@@ -158,6 +158,30 @@ with tab1:  # 或 if page == "1. 现象识别":
                 st.success("正常海洋环境")
 
             st.info(f"调试：油污占比 {oil_ratio:.2%} | 赤潮占比 {redtide_ratio:.2%}")
+
+            # ============== 任务3：中尺度涡边界定位与形态分割 ==============
+            st.subheader("任务3：中尺度涡边界定位与形态分割（简单示例）")
+            gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+            blurred = cv2.GaussianBlur(gray, (5,5), 0)
+            edges = cv2.Canny(blurred, 50, 150)
+
+            # 形态学操作增强涡边界
+            kernel = np.ones((5,5), np.uint8)
+            dilated = cv2.dilate(edges, kernel, iterations=2)
+
+            # 找轮廓（模拟涡边界分割）
+            contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contour_img = np.array(img).copy()
+            cv2.drawContours(contour_img, contours, -1, (0, 255, 0), 3)
+
+            col_edge1, col_edge2 = st.columns(2)
+            with col_edge1:
+                st.image(edges, caption="涡边界边缘检测（Canny算法）", width=400, clamp=True)
+            with col_edge2:
+                st.image(contour_img, caption="涡形态分割轮廓（绿色）", width=400, clamp=True)
+
+            st.info("说明：使用Canny边缘检测 + 形态学膨胀 + 轮廓提取模拟中尺度涡边界定位与形态分割")
+
             st.session_state.last_recognition = f"检测到：{'油污' if oil_ratio > redtide_ratio else '赤潮' if redtide_ratio > 0.02 else '正常'} (油污占比 {oil_ratio:.1%} / 赤潮占比 {redtide_ratio:.1%})"
             # 加掩码显示（可视化AI检测区域）
             col_mask1, col_mask2 = st.columns(2)
@@ -199,8 +223,9 @@ with tab2:
     col2.metric("最大叶绿素浓度", f"{data['叶绿素浓度 (mg/m³)'].max():.1f} mg/m³", delta="赤潮高发阈值>10")
     col3.metric("赤潮风险指数", f"{(data['叶绿素浓度 (mg/m³)'].mean() * 1.8):.1f}", delta=">15为高风险")
 
+
 with tab3:
-    st.header("AI趋势预测与智能推荐")
+    st.header("ai趋势预测与智能推荐")
     st.markdown("基于当前温度和叶绿素浓度预测30天后赤潮风险（非线性模型，更接近真实爆发）")
 
     col1, col2 = st.columns(2)
@@ -209,14 +234,17 @@ with tab3:
     with col2:
         current_chla = st.slider("当前叶绿素浓度 (mg/m³)", 0.1, 25.0, 5.0, step=0.5)
 
+    # 非线性风险计算
     temp_factor = (current_temp - 25) ** 2 / 50
     chla_factor = current_chla ** 1.5 / 5
     interaction = (current_temp > 28) * (current_chla > 8) * 8
     predicted_risk = 2 + temp_factor + chla_factor + interaction
     predicted_risk = round(min(max(predicted_risk, 0), 20), 1)
-    # 加这一行：更新首页的风险值
+
+    # 更新首页仪表盘
     st.session_state.last_risk = predicted_risk
 
+    # 显示预测结果
     if predicted_risk > 15:
         st.error(f"预测30天后赤潮风险指数：**{predicted_risk}** （高风险！）")
     elif predicted_risk > 8:
@@ -231,7 +259,22 @@ with tab3:
         st.markdown("准备投放生态调控剂或物理清除")
     else:
         st.markdown("继续日常卫星遥感与现场监测即可")
+    # ============== 任务5：风-浪异常识别与评估 ==============
+    st.subheader("任务5：风-浪异常识别与预警")
 
+    # 模拟风速和浪高（实际可接真实数据）
+    wind_speed = np.random.uniform(5, 25)   # m/s
+    wave_height = np.random.uniform(0.5, 6) # m
+
+    if wind_speed > 15 or wave_height > 4:
+        st.error(f"风浪异常预警触发！风速 {wind_speed:.1f} m/s，浪高 {wave_height:.1f} m")
+        st.markdown("**预警措施**：立即通知船舶避险，启动应急预案，启动无人机监测")
+    else:
+        st.success(f"风浪状态正常，风速 {wind_speed:.1f} m/s，浪高 {wave_height:.1f} m")
+
+
+
+    # 非线性曲线图
     temp_range = np.linspace(15, 35, 50)
     risks_fixed_chla = [2 + ((t-25)**2 / 50) + (current_chla**1.5 / 5) + ((t>28)*(current_chla>8)*8) for t in temp_range]
     risks_fixed_chla = np.clip(risks_fixed_chla, 0, 20)
@@ -242,3 +285,48 @@ with tab3:
     fig.add_vline(x=current_temp, line_dash="dash", line_color="red", annotation_text=f"当前温度 {current_temp}°C")
     fig.update_layout(showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
+
+    # 72小时水文要素预测（简单趋势外推）
+    st.subheader("72小时水文要素预测（简单趋势外推）")
+    hours = st.slider("预测时长（小时）", 24, 72, 72)
+
+    # 用当前滑块的值作为起点
+    future_temp = current_temp + np.linspace(0, 2, hours)
+    future_chla = current_chla * np.exp(np.linspace(0, 0.5, hours))
+    future_risk = future_chla * 1.5 + (future_temp - 25) * 2
+
+    fig_future = px.line(x=range(hours), y=future_risk, title=f"{hours}小时后风险趋势")
+    st.plotly_chart(fig_future, use_container_width=True)
+
+
+
+with tab4:
+    st.header("数据预处理 - NetCDF海洋数据读取示例")
+    st.markdown("本模块演示读取真实海洋NetCDF数据，进行数据清洗和特征提取。")
+
+    try:
+        from netCDF4 import Dataset
+        nc = Dataset('data.nc', 'r')   # 从仓库根目录读取
+
+        st.success("NetCDF文件读取成功！")
+        st.write("**文件包含的变量：**", list(nc.variables.keys()))
+
+        if 'sst' in nc.variables:
+            sst = nc.variables['sst'][:]
+            st.write("**海表温度数据形状：**", sst.shape)
+            st.write("**平均海表温度：**", f"{np.nanmean(sst):.2f} °C")
+
+            # 简单数据清洗
+            cleaned_sst = np.nan_to_num(sst, nan=np.nanmean(sst))
+            st.write("**数据清洗后平均值：**", f"{np.mean(cleaned_sst):.2f} °C")
+
+            # 可视化
+            fig = px.imshow(sst[0] if len(sst.shape) > 2 else sst, 
+                            title="海表温度场示例（第一层）")
+            st.plotly_chart(fig, use_container_width=True)
+
+        nc.close()
+
+    except Exception as e:
+        st.error(f"读取失败：{str(e)}")
+        st.info("请确保 data.nc 已上传到 GitHub 仓库根目录")
